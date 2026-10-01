@@ -752,21 +752,24 @@
         document.getElementById('scoreLabelTeamA').innerText = "[" + group + "조] " + teamA;
         document.getElementById('scoreLabelTeamB').innerText = "[" + group + "조] " + teamB;
 
+        // 우선 기본값 0으로 보장 설정
+        document.getElementById('scoreInputA').value = 0;
+        document.getElementById('scoreInputB').value = 0;
+        document.getElementById('warnInputA').value = 0;
+        document.getElementById('warnInputB').value = 0;
+
         let existingData = await apiGet('getMatchResultDetails', { grade: currentGrade, group: group, date: date, sport: sport });
 
         if (existingData) {
-          document.getElementById('scoreInputA').value = existingData.scoreA !== "" ? existingData.scoreA : 0;
-          document.getElementById('scoreInputB').value = existingData.scoreB !== "" ? existingData.scoreB : 0;
-          document.getElementById('warnInputA').value = existingData.teamA_warnings !== "" ? existingData.teamA_warnings : 0;
-          document.getElementById('warnInputB').value = existingData.teamB_warnings !== "" ? existingData.teamB_warnings : 0;
-        } else {
-          document.getElementById('scoreInputA').value = 0;
-          document.getElementById('scoreInputB').value = 0;
-          document.getElementById('warnInputA').value = 0;
-          document.getElementById('warnInputB').value = 0;
+          document.getElementById('scoreInputA').value = (existingData.scoreA !== undefined && existingData.scoreA !== null) ? existingData.scoreA : 0;
+          document.getElementById('scoreInputB').value = (existingData.scoreB !== undefined && existingData.scoreB !== null) ? existingData.scoreB : 0;
+          document.getElementById('warnInputA').value = (existingData.teamA_warnings !== undefined && existingData.teamA_warnings !== null) ? existingData.teamA_warnings : 0;
+          document.getElementById('warnInputB').value = (existingData.teamB_warnings !== undefined && existingData.teamB_warnings !== null) ? existingData.teamB_warnings : 0;
         }
 
-        new bootstrap.Modal(document.getElementById('scoreModal')).show();
+        var modalEl = document.getElementById('scoreModal');
+        var modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+        modal.show();
       }
 
       async function openAttendanceModal(group, date, sport, matchStr) {
@@ -783,12 +786,14 @@
         document.getElementById('attHeaderB').innerText = teamB + " (" + sport + ")";
 
         let existingData = await apiGet('getMatchResultDetails', { grade: currentGrade, group: group, date: date, sport: sport });
-        let savedPlayers = existingData ? existingData.playerDetails : [];
+        let savedPlayers = (existingData && existingData.playerDetails) ? existingData.playerDetails : [];
 
         await loadClassSubTeamRosters('attRosterContainerA', classNumA, teamA, sport, savedPlayers);
         await loadClassSubTeamRosters('attRosterContainerB', classNumB, teamB, sport, savedPlayers);
 
-        new bootstrap.Modal(document.getElementById('attendanceModal')).show();
+        var modalEl = document.getElementById('attendanceModal');
+        var modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+        modal.show();
       }
       
       async function loadClassSubTeamRosters(containerId, classNum, teamName, sport, savedPlayers) {
