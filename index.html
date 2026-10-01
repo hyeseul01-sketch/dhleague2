@@ -752,12 +752,19 @@
         document.getElementById('scoreLabelTeamA').innerText = "[" + group + "조] " + teamA;
         document.getElementById('scoreLabelTeamB').innerText = "[" + group + "조] " + teamB;
 
-        let existingData = await apiGet('getSchedule', { grade: currentGrade, group: group });
-        
-        document.getElementById('scoreInputA').value = 0;
-        document.getElementById('scoreInputB').value = 0;
-        document.getElementById('warnInputA').value = 0;
-        document.getElementById('warnInputB').value = 0;
+        let existingData = await apiGet('getMatchResultDetails', { grade: currentGrade, group: group, date: date, sport: sport });
+
+        if (existingData) {
+          document.getElementById('scoreInputA').value = existingData.scoreA !== "" ? existingData.scoreA : 0;
+          document.getElementById('scoreInputB').value = existingData.scoreB !== "" ? existingData.scoreB : 0;
+          document.getElementById('warnInputA').value = existingData.teamA_warnings !== "" ? existingData.teamA_warnings : 0;
+          document.getElementById('warnInputB').value = existingData.teamB_warnings !== "" ? existingData.teamB_warnings : 0;
+        } else {
+          document.getElementById('scoreInputA').value = 0;
+          document.getElementById('scoreInputB').value = 0;
+          document.getElementById('warnInputA').value = 0;
+          document.getElementById('warnInputB').value = 0;
+        }
 
         new bootstrap.Modal(document.getElementById('scoreModal')).show();
       }
@@ -775,12 +782,15 @@
         document.getElementById('attHeaderA').innerText = teamA + " (" + sport + ")";
         document.getElementById('attHeaderB').innerText = teamB + " (" + sport + ")";
 
-        await loadClassSubTeamRosters('attRosterContainerA', classNumA, teamA, sport, []);
-        await loadClassSubTeamRosters('attRosterContainerB', classNumB, teamB, sport, []);
+        let existingData = await apiGet('getMatchResultDetails', { grade: currentGrade, group: group, date: date, sport: sport });
+        let savedPlayers = existingData ? existingData.playerDetails : [];
+
+        await loadClassSubTeamRosters('attRosterContainerA', classNumA, teamA, sport, savedPlayers);
+        await loadClassSubTeamRosters('attRosterContainerB', classNumB, teamB, sport, savedPlayers);
 
         new bootstrap.Modal(document.getElementById('attendanceModal')).show();
       }
-
+      
       async function loadClassSubTeamRosters(containerId, classNum, teamName, sport, savedPlayers) {
         let roster = await apiGet('getClassRoster', { grade: currentGrade, classNum: classNum });
         let container = document.getElementById(containerId);
@@ -821,6 +831,11 @@
           </div>
         `;
         container.innerHTML = html;
+        
+        (roster || []).forEach(p => {
+          let chk = container.querySelector(`.player-attendance[data-team="${teamName}"][data-num="${p.num}"]`);
+          if (chk) checkSubTeamDuplicate(chk);
+        });
       }
 
       function buildSubTeamRows(roster, teamName, subTeamTag, savedPlayers) {
