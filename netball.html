@@ -399,6 +399,25 @@
         function resetTimer() { clearInterval(timerInterval); isRunning = false; setTime(); }
         function setTime() { timeRemaining = (parseInt(document.getElementById('time-input').value) || 12) * 60; updateTimerDisplay(); }
 
+function updateCenterPassDisplay() {
+    const btnA = document.getElementById('cp-A');
+    const btnB = document.getElementById('cp-B');
+    if (!btnA || !btnB) return;
+    
+    btnA.className = 'w-full mt-4 bg-gray-800 border-2 border-gray-600 text-gray-400 py-4 rounded-xl font-black text-xl transition uppercase tracking-widest flex items-center justify-center';
+    btnB.className = 'w-full mt-4 bg-gray-800 border-2 border-gray-600 text-gray-400 py-4 rounded-xl font-black text-xl transition uppercase tracking-widest flex items-center justify-center';
+    btnA.innerHTML = 'Center Pass';
+    btnB.innerHTML = 'Center Pass';
+
+    const activeBtn = (centerPassTeam === 'A') ? btnA : btnB;
+    if (activeBtn) {
+        activeBtn.classList.add('center-pass-active');
+        if (!isRunning && timeRemaining === (parseInt(document.getElementById('time-input').value) || 12) * 60 && currentQuarter <= 4) {
+            activeBtn.innerHTML = `CENTER PASS <span class="text-base font-black bg-red-600 text-white px-3 py-1 rounded-lg ml-2 animate-pulse shadow-lg">${currentQuarter} Quarter 시작~!</span>`;
+        }
+    }
+}
+        
         function changeScore(team, amount) {
             scores[team] += amount;
             if (scores[team] < 0) scores[team] = 0;
