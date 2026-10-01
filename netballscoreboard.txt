@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Netball Scoreboard Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
+        
+        body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: white; user-select: none; overflow-x: hidden; }
+        .glass-panel { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .settings-panel { opacity: 0.1; transition: opacity 0.3s ease; }
+        .settings-panel:hover, .settings-panel:active, .settings-panel:focus-within { opacity: 1; }
+
+        .player-toggle {
+            width: 3rem; height: 3rem; border-radius: 9999px; display: flex; align-items: center; justify-content: center;
+            font-weight: 700; font-size: 1.125rem; background-color: #334155; color: #94a3b8; cursor: pointer;
+            position: relative; transition: all 0.2s ease; box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);
+        }
+        @media (min-width: 768px) { .player-toggle { width: 3.5rem; height: 3.5rem; font-size: 1.25rem; } }
+
+        .active-red { background-color: #ef4444; color: white; box-shadow: 0 0 15px rgba(239, 68, 68, 0.6); border: 2px solid #fca5a5; }
+        .active-blue { background-color: #3b82f6; color: white; box-shadow: 0 0 15px rgba(59, 130, 246, 0.6); border: 2px solid #93c5fd; }
+        .active-yellow { background-color: #eab308; color: black; box-shadow: 0 0 15px rgba(234, 179, 8, 0.6); border: 2px solid #fef08a; }
+        .active-green { background-color: #22c55e; color: white; box-shadow: 0 0 15px rgba(34, 197, 94, 0.6); border: 2px solid #86efac; }
+
+        .badge-container { position: absolute; top: -6px; right: -6px; display: flex; gap: 2px; pointer-events: none; }
+        .quarter-badge {
+            width: 16px; height: 16px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            font-size: 0.65rem; font-weight: 900; color: white; box-shadow: 0 2px 4px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.3);
+        }
+        
+        .badge-q1 { background-color: #f97316; } 
+        .badge-q2 { background-color: #84cc16; color: #000; } 
+        .badge-q3 { background-color: #eab308; color: #000; } 
+        .badge-q4 { background-color: #ef4444; } 
+
+        .center-pass-active {
+            background-color: #ffff00 !important; color: #000000 !important; font-weight: 900;
+            box-shadow: 0 0 20px rgba(255, 255, 0, 0.8) !important; border-color: #fbbf24 !important; transform: scale(1.05);
+        }
+
+        @keyframes penalty-pulse {
+            0%, 100% { box-shadow: 0 0 0px rgba(220, 38, 38, 0); border-color: rgba(239, 68, 68, 1); }
+            50% { box-shadow: 0 0 30px rgba(220, 38, 38, 0.9); border-color: #f87171; background-color: rgba(127, 29, 29, 0.5); }
+        }
+        .penalty-active { animation: penalty-pulse 1.5s 3; }
+
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+        .tabular-nums { font-variant-numeric: tabular-nums; }
+        .team-name-input { width: 100%; background: transparent; text-align: center; outline: none; border-bottom: 2px solid transparent; transition: border-color 0.2s; }
+        .team-name-input:focus { border-bottom: 2px solid rgba(255,255,255,0.3); }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center p-2 md:p-6 pb-20 relative">
+    <script>
+      // 💡 [선생님 설정 필수] Google Apps Script 웹 앱 배포 URL을 입력하세요.
+      const GAS_API_URL = "https://script.google.com/macros/s/AKfycbws9CWtk2GvYDAdgR9dUJjRz-wfKx3LTRsw0rOd9VMDXTuk2yohxlqo27SrDmJxasjz/exec";
+    </script>
+
+    <div class="absolute top-4 left-4 z-20 flex gap-2">
+        <button onclick="toggleFullScreen()" class="bg-gray-800 hover:bg-gray-700 text-gray-300 px-3 py-1.5 rounded-lg border border-gray-600 font-bold text-sm shadow-md transition flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                <path fill-rule="evenodd" d="M5.828 10.172a.5.5 0 0 0-.707 0l-4.096 4.096V11.5a.5.5 0 0 0-1 0v3.975a.5.5 0 0 0 .5.5H4.5a.5.5 0 0 0 0-1H1.732l4.096-4.096a.5.5 0 0 0 0-.707m4.344 0a.5.5 0 0 1 .707 0l4.096 4.096V11.5a.5.5 0 1 1 1 0v3.975a.5.5 0 0 1-.5.5H11.5a.5.5 0 0 1 0-1h2.768l-4.096-4.096a.5.5 0 0 1 0-.707m0-4.344a.5.5 0 0 0 .707 0l4.096-4.096V4.5a.5.5 0 1 0 1 0V.525a.5.5 0 0 0-.5-.5H11.5a.5.5 0 0 0 0 1h2.768l-4.096 4.096a.5.5 0 0 0 0 .707m-4.344 0a.5.5 0 0 1-.707 0L1.025 1.732V4.5a.5.5 0 0 1-1 0V.525a.5.5 0 0 1 .5-.5H4.5a.5.5 0 0 1 0 1H1.732l4.096 4.096a.5.5 0 0 1 0 .707"/>
+            </svg>
+            <span>전체화면</span>
+        </button>
+
+        <a href="index.html" class="bg-blue-800 hover:bg-blue-700 text-gray-200 px-3 py-1.5 rounded-lg border border-blue-600 font-bold text-sm shadow-md transition flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M0 2a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2zm15 2h-4v3h4zm0 4h-4v3h4zm0 4h-4v3h3a1 1 0 0 0 1-1zm-5 3v-3H6v3zm-5 0v-3H1v2a1 1 0 0 0 1 1zm-4-4h4V8H1zm0-4h4V4H1zm5-3v3h4V4zm4 4H6v3h4z"/>
+            </svg>
+            <span>리그 메인으로</span>
+        </a>
+        <button onclick="openLoadRosterModal()" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-lg border border-blue-400 font-bold text-sm shadow-md transition flex items-center gap-1">
+            👥 출전 명단 불러오기
+        </button>
+    </div>
+
+    <div id="slider-container" class="w-full flex flex-col gap-8">
+        <div id="view-scoreboard" class="slide-view flex flex-col items-center relative w-full">
+            <div class="settings-panel absolute top-0 right-0 md:right-4 z-10 bg-gray-800 p-3 rounded-xl shadow-lg border border-gray-600 flex items-center gap-2">
+                <label class="text-xs text-gray-400 font-bold">시간설정</label>
+                <input type="number" id="time-input" value="12" min="1" max="60" class="w-16 bg-gray-900 text-white border border-gray-700 rounded px-2 py-1 text-center font-bold">
+                <span class="text-xs text-gray-400">분</span>
+                <button onclick="setTime()" class="ml-1 bg-blue-600 hover:bg-blue-500 text-white text-xs px-3 py-1.5 rounded font-bold transition">적용</button>
+            </div>
+
+            <div class="top-section w-full flex flex-col items-center mb-6 mt-2 md:mt-0 relative">
+                <div class="flex items-center gap-4 md:gap-6 z-10">
+                    <button onclick="prevQuarter()" class="w-12 h-12 md:w-16 md:h-16 bg-gray-700 hover:bg-gray-600 rounded-full flex justify-center items-center text-3xl font-black transition shadow-lg border border-gray-400">&lt;</button>
+                    <div id="quarter-display" class="text-6xl md:text-[6rem] font-black text-yellow-400 tracking-widest drop-shadow-[0_0_20px_rgba(253,224,71,0.5)]">1 Quarter</div>
+                    <button onclick="nextQuarter()" class="w-12 h-12 md:w-16 md:h-16 bg-gray-700 hover:bg-gray-600 rounded-full flex justify-center items-center text-3xl font-black transition shadow-lg border border-gray-400">&gt;</button>
+                </div>
+
+                <div id="maker-text" class="text-center text-gray-500/80 font-bold text-sm md:text-base tracking-widest w-full mt-2 md:mt-4 mb-2 md:mb-4">
+                    2026학년도 2학기 3학년 넷볼 스코어보드 Pro
+                </div>
+                
+                <div id="timer-wrapper" class="relative flex justify-center items-center font-black tracking-[0.2em] text-white drop-shadow-[0_10px_30px_rgba(0,0,0,0.9)] leading-none tabular-nums z-10">
+                    <div class="time-adjust-btns absolute -left-14 md:-left-20 top-1/2 -translate-y-1/2 flex flex-col gap-2 transition-opacity duration-300">
+                        <button onclick="adjustTime(60)" class="text-gray-400 hover:text-white bg-gray-800/60 hover:bg-gray-700/80 border border-gray-600/50 rounded-xl p-2 shadow-lg backdrop-blur-md transition-all hover:scale-110 active:scale-95">▲</button>
+                        <button onclick="adjustTime(-60)" class="text-gray-400 hover:text-white bg-gray-800/60 hover:bg-gray-700/80 border border-gray-600/50 rounded-xl p-2 shadow-lg backdrop-blur-md transition-all hover:scale-110 active:scale-95">▼</button>
+                    </div>
+
+                    <div class="flex items-center px-6 md:px-10">
+                        <span id="timer-mins" class="text-[9rem] md:text-[14rem]">12</span>
+                        <span class="timer-colon text-[9rem] md:text-[14rem] mx-2 md:mx-6 pb-4 md:pb-8">:</span>
+                        <span id="timer-secs" class="text-[9rem] md:text-[14rem]">00</span>
+                    </div>
+
+                    <div class="time-adjust-btns absolute -right-14 md:-right-20 top-1/2 -translate-y-1/2 flex flex-col gap-2 transition-opacity duration-300">
+                        <button onclick="adjustTime(1)" class="text-gray-400 hover:text-white bg-gray-800/60 hover:bg-gray-700/80 border border-gray-600/50 rounded-xl p-2 shadow-lg backdrop-blur-md transition-all hover:scale-110 active:scale-95">▲</button>
+                        <button onclick="adjustTime(-1)" class="text-gray-400 hover:text-white bg-gray-800/60 hover:bg-gray-700/80 border border-gray-600/50 rounded-xl p-2 shadow-lg backdrop-blur-md transition-all hover:scale-110 active:scale-95">▼</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="score-section w-full max-w-[95%] flex flex-col md:flex-row justify-between items-stretch gap-4 md:gap-8 mb-4">
+                <div id="score-box-A" class="score-box glass-panel rounded-3xl p-4 md:p-6 flex-1 flex flex-col items-center relative overflow-hidden shadow-2xl border-t-8 border-red-500 transition-all duration-300">
+                    <div id="penalty-badge-A" class="hidden absolute top-4 left-4 bg-red-600 text-white font-black px-3 py-1 rounded-lg border border-white shadow-lg text-sm md:text-base tracking-wider z-20">🚨 PENALTY</div>
+                    
+                    <div class="flex gap-2 mb-2 justify-center z-20 relative">
+                        <button id="color-A-red" onclick="setTeamColor('A', 'red')" class="w-4 h-4 rounded-full bg-red-500"></button>
+                        <button id="color-A-blue" onclick="setTeamColor('A', 'blue')" class="w-4 h-4 rounded-full bg-blue-500"></button>
+                        <button id="color-A-yellow" onclick="setTeamColor('A', 'yellow')" class="w-4 h-4 rounded-full bg-yellow-500"></button>
+                        <button id="color-A-green" onclick="setTeamColor('A', 'green')" class="w-4 h-4 rounded-full bg-green-500"></button>
+                    </div>
+
+                    <input type="text" id="team-name-A" value="1반" oninput="updateTeamName('A')" class="team-name-input text-red-400 font-black text-4xl md:text-5xl mb-1 tracking-widest uppercase">
+                    
+                    <div class="text-yellow-400 font-bold text-sm mb-2 bg-yellow-900/40 px-3 py-1 rounded-full border border-yellow-600/50 flex items-center gap-1 z-10 relative">
+                        <span>팀 경고 수:</span>
+                        <span id="team-warnings-A" class="text-white text-base">0</span>
+                    </div>
+
+                    <div id="score-A" class="text-[9rem] md:text-[11rem] font-black mb-4 tracking-tighter leading-none">0</div>
+                    <div class="flex gap-4 w-full">
+                        <button id="btn-minus-A" onclick="changeScore('A', -1)" class="flex-1 bg-red-900/50 hover:bg-red-800 text-red-200 py-3 rounded-2xl font-bold text-3xl transition">-</button>
+                        <button id="btn-plus-A" onclick="changeScore('A', 1)" class="flex-[2] bg-red-600 hover:bg-red-500 text-white py-3 rounded-2xl font-black text-4xl shadow-lg transition">+</button>
+                    </div>
+                    <button id="cp-A" onclick="setCenterPass('A')" class="w-full mt-4 bg-gray-800 border-2 border-gray-600 text-gray-400 py-4 rounded-xl font-black text-xl transition uppercase tracking-widest flex items-center justify-center">Center Pass</button>
+                </div>
+
+                <div class="controls-panel flex flex-col gap-2.5 w-full md:w-48 shrink-0 justify-center">
+                    <button id="btn-start" onclick="toggleTimer()" class="w-full bg-green-600 hover:bg-green-500 text-white py-3.5 rounded-xl font-black text-xl transition shadow-lg">시작</button>
+                    <button onclick="openLeagueSaveModal()" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-3.5 rounded-xl font-black text-base transition shadow-lg border border-blue-400">💾 리그 시트 저장</button>
+                    <button onclick="showConfirm('시간을 초기화하시겠습니까?', resetTimer)" class="w-full bg-gray-700 hover:bg-gray-600 text-white py-2.5 rounded-xl font-bold text-sm transition">시간 초기화</button>
+                    <button onclick="showConfirm('양 팀 점수를 0점으로 초기화하시겠습니까?', resetScores)" class="w-full border border-red-800/50 bg-red-900/40 hover:bg-red-800/60 text-red-300 py-2.5 rounded-xl font-bold text-sm transition">점수 초기화</button>
+                    <button onclick="showConfirm('모든 선수의 기록을 초기화하시겠습니까?', resetPlayers)" class="w-full border border-gray-600 bg-gray-800 hover:bg-gray-700 text-gray-300 py-2.5 rounded-xl font-bold text-sm transition">선수 초기화</button>
+                    <button onclick="showCPHistory()" class="w-full border border-yellow-600/50 bg-gray-800 hover:bg-gray-700 text-yellow-500 py-2.5 rounded-xl font-bold text-sm transition">센터패스 내역</button>
+                </div>
+
+                <div id="score-box-B" class="score-box glass-panel rounded-3xl p-4 md:p-6 flex-1 flex flex-col items-center relative overflow-hidden shadow-2xl border-t-8 border-blue-500 transition-all duration-300">
+                    <div id="penalty-badge-B" class="hidden absolute top-4 left-4 bg-blue-600 text-white font-black px-3 py-1 rounded-lg border border-white shadow-lg text-sm md:text-base tracking-wider z-20">🚨 PENALTY</div>
+
+                    <div class="flex gap-2 mb-2 justify-center z-20 relative">
+                        <button id="color-B-red" onclick="setTeamColor('B', 'red')" class="w-4 h-4 rounded-full bg-red-500"></button>
+                        <button id="color-B-blue" onclick="setTeamColor('B', 'blue')" class="w-4 h-4 rounded-full bg-blue-500"></button>
+                        <button id="color-B-yellow" onclick="setTeamColor('B', 'yellow')" class="w-4 h-4 rounded-full bg-yellow-500"></button>
+                        <button id="color-B-green" onclick="setTeamColor('B', 'green')" class="w-4 h-4 rounded-full bg-green-500"></button>
+                    </div>
+
+                    <input type="text" id="team-name-B" value="2반" oninput="updateTeamName('B')" class="team-name-input text-blue-400 font-black text-4xl md:text-5xl mb-1 tracking-widest uppercase">
+                    
+                    <div class="text-yellow-400 font-bold text-sm mb-2 bg-yellow-900/40 px-3 py-1 rounded-full border border-yellow-600/50 flex items-center gap-1 z-10 relative">
+                        <span>팀 경고 수:</span>
+                        <span id="team-warnings-B" class="text-white text-base">0</span>
+                    </div>
+
+                    <div id="score-B" class="text-[9rem] md:text-[11rem] font-black mb-4 tracking-tighter leading-none">0</div>
+                    <div class="flex gap-4 w-full">
+                        <button id="btn-minus-B" onclick="changeScore('B', -1)" class="flex-1 bg-blue-900/50 hover:bg-blue-800 text-blue-200 py-3 rounded-2xl font-bold text-3xl transition">-</button>
+                        <button id="btn-plus-B" onclick="changeScore('B', 1)" class="flex-[2] bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-2xl font-black text-4xl shadow-lg transition">+</button>
+                    </div>
+                    <button id="cp-B" onclick="setCenterPass('B')" class="w-full mt-4 bg-gray-800 border-2 border-gray-600 text-gray-400 py-4 rounded-xl font-black text-xl transition uppercase tracking-widest flex items-center justify-center">Center Pass</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="view-roster" class="slide-view flex flex-col items-center relative w-full">
+            <div class="roster-section w-full max-w-[95%] flex flex-col md:flex-row gap-6">
+                <div class="flex-1 glass-panel rounded-2xl p-4">
+                    <div class="flex justify-between items-end border-b border-gray-600 pb-2 mb-4 px-2">
+                        <div id="roster-title-A" class="text-xl text-red-400 font-black">1반 출전 명단</div>
+                        <div id="count-bg-A" class="text-sm font-bold text-gray-200 bg-red-900/50 border border-red-500/30 px-3 py-1 rounded-lg">현재 출전: <span id="count-A" class="text-red-400 text-xl">0</span>명</div>
+                    </div>
+                    <div id="roster-A" class="grid grid-cols-5 md:grid-cols-5 gap-y-5 gap-x-2 justify-items-center"></div>
+                </div>
+
+                <div class="flex-1 glass-panel rounded-2xl p-4">
+                    <div class="flex justify-between items-end border-b border-gray-600 pb-2 mb-4 px-2">
+                        <div id="roster-title-B" class="text-xl text-blue-400 font-black">2반 출전 명단</div>
+                        <div id="count-bg-B" class="text-sm font-bold text-gray-200 bg-blue-900/50 border border-blue-500/30 px-3 py-1 rounded-lg">현재 출전: <span id="count-B" class="text-blue-400 text-xl">0</span>명</div>
+                    </div>
+                    <div id="roster-B" class="grid grid-cols-5 md:grid-cols-5 gap-y-5 gap-x-2 justify-items-center"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 모달 창 영역 -->
+    <div id="load-roster-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+        <div class="bg-gray-800 border border-gray-600 rounded-2xl p-6 md:p-8 max-w-md w-full shadow-2xl">
+            <h2 class="text-2xl font-black text-blue-400 mb-4 text-center">👥 리그 출전 명단 동기화</h2>
+            <p class="text-xs text-gray-400 mb-6 text-center">* 리그 앱 출전 체크에 따라 A팀➔1Q, B팀➔2Q, C팀➔3Q가 자동 지정됩니다.</p>
+            <div class="space-y-4 mb-6">
+                <div>
+                  <label class="block text-xs font-bold text-gray-300 mb-1">조 선택</label>
+                  <select id="load-group" class="w-full bg-gray-900 text-white border border-gray-700 rounded-lg p-2.5 font-bold">
+                    <option value="A">A조</option><option value="B">B조</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-xs font-bold text-gray-300 mb-1">경기 일자</label>
+                  <input type="date" id="load-date" class="w-full bg-gray-900 text-white border border-gray-700 rounded-lg p-2.5 font-bold">
+                </div>
+            </div>
+            <div class="flex gap-3">
+                <button onclick="closeLoadRosterModal()" class="flex-1 bg-gray-600 hover:bg-gray-500 text-white py-3 rounded-xl font-bold transition">취소</button>
+                <button onclick="executeLoadRoster()" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl font-bold transition shadow-lg">🔄 불러오기</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="league-save-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+        <div class="bg-gray-800 border border-gray-600 rounded-2xl p-6 md:p-8 max-w-md w-full shadow-2xl">
+            <h2 class="text-2xl font-black text-blue-400 mb-4 text-center">🏆 리그전 시트 전송</h2>
+            <p class="text-xs text-gray-400 mb-6 text-center">* '3학년_경기결과' 및 '3학년_출전명단' 시트에 저장되며 순위표가 자동 갱신됩니다.</p>
+            <div class="space-y-4 mb-6">
+                <div>
+                  <label class="block text-xs font-bold text-gray-300 mb-1">조 선택</label>
+                  <select id="save-group" class="w-full bg-gray-900 text-white border border-gray-700 rounded-lg p-2.5 font-bold">
+                    <option value="A">A조</option><option value="B">B조</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-xs font-bold text-gray-300 mb-1">경기 일자</label>
+                  <input type="date" id="save-date" class="w-full bg-gray-900 text-white border border-gray-700 rounded-lg p-2.5 font-bold">
+                </div>
+                <div class="p-3 bg-gray-900 rounded-lg border border-gray-700">
+                  <div class="text-xs text-gray-400 mb-1">저장될 데이터 확정:</div>
+                  <div class="text-sm font-bold text-yellow-400" id="save-summary-text">1반 vs 2반</div>
+                </div>
+            </div>
+            <div class="flex gap-3">
+                <button onclick="closeLeagueSaveModal()" class="flex-1 bg-gray-600 hover:bg-gray-500 text-white py-3 rounded-xl font-bold transition">취소</button>
+                <button onclick="executeLeagueSave()" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl font-bold transition shadow-lg">💾 시트에 전송</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="confirm-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+        <div class="bg-gray-800 border border-gray-600 rounded-2xl p-6 md:p-8 max-w-sm w-full text-center shadow-2xl">
+            <div id="confirm-msg" class="text-xl font-bold text-white mb-8">메시지</div>
+            <div class="flex gap-4">
+                <button onclick="closeConfirm()" class="flex-1 bg-gray-600 hover:bg-gray-500 text-white py-3 rounded-xl font-bold transition">취소</button>
+                <button onclick="executeConfirm()" class="flex-1 bg-red-600 hover:bg-red-500 text-white py-3 rounded-xl font-bold transition shadow-lg text-lg">확인</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="cphistory-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+        <div class="bg-gray-800 border border-gray-600 rounded-2xl flex flex-col max-w-md w-full max-h-[80vh] shadow-2xl">
+            <div class="p-4 border-b border-gray-700 flex justify-between items-center">
+                <h2 class="text-xl font-black text-yellow-400">센터패스 전환 내역</h2>
+                <button onclick="closeCPHistory()" class="text-gray-400 hover:text-white font-bold text-xl">&times;</button>
+            </div>
+            <div class="p-4 overflow-y-auto flex-1">
+                <ul id="cp-history-list" class="space-y-2 text-sm md:text-base">
+                    <li class="text-gray-500 text-center py-4">기록이 없습니다.</li>
+                </ul>
+            </div>
+            <div class="p-4 border-t border-gray-700">
+                <button onclick="closeCPHistory()" class="w-full bg-gray-700 hover:bg-gray-600 py-3 rounded-xl font-bold transition">닫기</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const teamColorThemes = {
+            red: { boxBorder: 'border-red-500', nameText: 'text-red-400', minusBtn: ['bg-red-900/50', 'hover:bg-red-800', 'text-red-200'], plusBtn: ['bg-red-600', 'hover:bg-red-500'], penaltyBadge: 'bg-red-600', rosterCountBg: ['bg-red-900/50', 'border-red-500/30'] },
+            blue: { boxBorder: 'border-blue-500', nameText: 'text-blue-400', minusBtn: ['bg-blue-900/50', 'hover:bg-blue-800', 'text-blue-200'], plusBtn: ['bg-blue-600', 'hover:bg-blue-500'], penaltyBadge: 'bg-blue-600', rosterCountBg: ['bg-blue-900/50', 'border-blue-500/30'] },
+            yellow: { boxBorder: 'border-yellow-500', nameText: 'text-yellow-400', minusBtn: ['bg-yellow-900/50', 'hover:bg-yellow-800', 'text-yellow-200'], plusBtn: ['bg-yellow-600', 'hover:bg-yellow-500'], penaltyBadge: 'bg-yellow-600', rosterCountBg: ['bg-yellow-900/50', 'border-yellow-500/30'] },
+            green: { boxBorder: 'border-green-500', nameText: 'text-green-400', minusBtn: ['bg-green-900/50', 'hover:bg-green-800', 'text-green-200'], plusBtn: ['bg-green-600', 'hover:bg-green-500'], penaltyBadge: 'bg-green-600', rosterCountBg: ['bg-green-900/50', 'border-green-500/30'] }
+        };
+
+        let currentColors = { A: 'red', B: 'blue' };
+        let timerInterval;
+        let timeRemaining = 12 * 60;
+        let isRunning = false;
+        let scores = { A: 0, B: 0 };
+        let currentQuarter = 1;
+        let centerPassTeam = 'A';
+        let cpHistory = []; 
+        let confirmCallback = null; 
+        let players = { A: {}, B: {} };
+        let warnings = { A: {}, B: {} };
+        let teamWarnings = { A: 0, B: 0 }; 
+        let teamNames = { A: '1반', B: '2반' };
+
+        function initPlayersData() {
+            for (let i = 1; i <= 15; i++) {
+                players.A[i] = []; players.B[i] = [];
+                warnings.A[i] = 0; warnings.B[i] = 0;
+            }
+            teamWarnings.A = 0; teamWarnings.B = 0;
+        }
+        initPlayersData();
+
+        window.onload = function() {
+            updateColorPickerUI('A'); updateColorPickerUI('B');
+            renderRoster('A'); renderRoster('B');
+            updateTimerDisplay(); updatePlayerCount('A'); updatePlayerCount('B');
+            updateCenterPassDisplay(); updateWarningUI('A'); updateWarningUI('B');
+
+            const today = new Date().toISOString().substring(0, 10);
+            document.getElementById('save-date').value = today;
+            document.getElementById('load-date').value = today;
+        };
+
+        function setTeamColor(team, newColor) {
+            const oldColor = currentColors[team];
+            const oldTheme = teamColorThemes[oldColor];
+            const newTheme = teamColorThemes[newColor];
+            currentColors[team] = newColor;
+
+            document.getElementById(`score-box-${team}`).classList.remove(oldTheme.boxBorder);
+            document.getElementById(`score-box-${team}`).classList.add(newTheme.boxBorder);
+            document.getElementById(`team-name-${team}`).classList.remove(oldTheme.nameText);
+            document.getElementById(`team-name-${team}`).classList.add(newTheme.nameText);
+
+            for(let i=1; i<=15; i++) updatePlayerUI(team, i);
+            updateColorPickerUI(team);
+        }
+
+        function updateColorPickerUI(team) {
+            ['red', 'blue', 'yellow', 'green'].forEach(c => {
+                const btn = document.getElementById(`color-${team}-${c}`);
+                if (c === currentColors[team]) btn.classList.add('ring-2', 'ring-white');
+                else btn.classList.remove('ring-2', 'ring-white');
+            });
+        }
+
+        function updateTeamName(team) {
+            let newName = document.getElementById(`team-name-${team}`).value;
+            if(newName.trim() === '') newName = (team === 'A' ? '1반' : '2반');
+            teamNames[team] = newName.trim();
+            document.getElementById(`roster-title-${team}`).innerText = `${teamNames[team]} 출전 명단`;
+        }
+
+        function updateTimerDisplay() {
+            const minutes = Math.floor(timeRemaining / 60);
+            const seconds = timeRemaining % 60;
+            document.getElementById('timer-mins').innerText = String(minutes).padStart(2, '0');
+            document.getElementById('timer-secs').innerText = String(seconds).padStart(2, '0');
+        }
+
+        function adjustTime(seconds) {
+            if (isRunning) return; 
+            timeRemaining += seconds;
+            if (timeRemaining < 0) timeRemaining = 0;
+            updateTimerDisplay();
+        }
+
+        function playBuzzer() {
+            if (typeof Tone !== 'undefined') {
+                if (Tone.context.state !== 'running') Tone.start();
+                const synth = new Tone.Synth({ oscillator: { type: "square" } }).toDestination();
+                synth.triggerAttackRelease("G2", 3);
+            }
+        }
+
+        function toggleTimer() {
+            const btn = document.getElementById('btn-start');
+            if (isRunning) {
+                clearInterval(timerInterval);
+                btn.innerText = '계속';
+            } else {
+                if (timeRemaining <= 0) return;
+                timerInterval = setInterval(() => {
+                    timeRemaining--;
+                    updateTimerDisplay();
+                    if (timeRemaining <= 0) {
+                        clearInterval(timerInterval);
+                        isRunning = false;
+                        playBuzzer();
+                    }
+                }, 1000);
+                btn.innerText = '일시정지';
+            }
+            isRunning = !isRunning;
+        }
+
+        function resetTimer() { clearInterval(timerInterval); isRunning = false; setTime(); }
+        function setTime() { timeRemaining = (parseInt(document.getElementById('time-input').value) || 12) * 60; updateTimerDisplay(); }
+
+        function changeScore(team, amount) {
+            scores[team] += amount;
+            if (scores[team] < 0) scores[team] = 0;
+            document.getElementById(`score-${team}`).innerText = scores[team];
+        }
+
+        function resetScores() { scores.A = 0; scores.B = 0; document.getElementById('score-A').innerText = '0'; document.getElementById('score-B').innerText = '0'; }
+
+        function renderRoster(team) {
+            const container = document.getElementById(`roster-${team}`);
+            container.innerHTML = '';
+            for (let i = 1; i <= 15; i++) {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'relative flex flex-col items-center';
+
+                const btn = document.createElement('button');
+                btn.id = `btn-${team}-${i}`;
+                btn.className = 'player-toggle';
+                btn.innerText = i;
+                btn.onclick = () => togglePlayer(team, i);
+
+                const badgeContainer = document.createElement('div');
+                badgeContainer.id = `badges-${team}-${i}`;
+                badgeContainer.className = 'badge-container';
+
+                const warningBtn = document.createElement('button');
+                warningBtn.id = `warning-${team}-${i}`;
+                warningBtn.className = 'absolute -bottom-1 -right-1 bg-yellow-400 text-black text-[0.65rem] font-black px-1 rounded';
+                warningBtn.innerHTML = warnings[team][i] > 0 ? `🟨${warnings[team][i]}` : '🟨';
+                warningBtn.onclick = (e) => { e.stopPropagation(); addWarning(team, i); };
+
+                wrapper.appendChild(btn); wrapper.appendChild(badgeContainer); wrapper.appendChild(warningBtn);
+                container.appendChild(wrapper);
+                updatePlayerUI(team, i);
+            }
+        }
+
+        function addWarning(team, id) { warnings[team][id]++; teamWarnings[team]++; updateWarningUI(team); }
+        function updateWarningUI(team) { document.getElementById(`team-warnings-${team}`).innerText = teamWarnings[team]; }
+
+        function togglePlayer(team, id) {
+            const record = players[team][id];
+            const index = record.indexOf(currentQuarter);
+            if (index === -1) { record.push(currentQuarter); record.sort(); }
+            else { record.splice(index, 1); }
+            updatePlayerUI(team, id); updatePlayerCount(team);
+        }
+
+        function updatePlayerUI(team, id) {
+            const btn = document.getElementById(`btn-${team}-${id}`);
+            const badgeContainer = document.getElementById(`badges-${team}-${id}`);
+            const record = players[team][id];
+            
+            btn.classList.remove('active-red', 'active-blue', 'active-yellow', 'active-green');
+            if (record.includes(currentQuarter)) btn.classList.add(`active-${currentColors[team]}`);
+
+            badgeContainer.innerHTML = '';
+            record.forEach(q => {
+                const badge = document.createElement('div');
+                badge.className = `quarter-badge badge-q${q}`;
+                badge.innerText = q;
+                badgeContainer.appendChild(badge);
+            });
+        }
+
+        function updatePlayerCount(team) {
+            let count = 0;
+            for (let i = 1; i <= 15; i++) { if (players[team][i].includes(currentQuarter)) count++; }
+            document.getElementById(`count-${team}`).innerText = count;
+        }
+
+        function resetPlayers() { initPlayersData(); renderRoster('A'); renderRoster('B'); updatePlayerCount('A'); updatePlayerCount('B'); }
+
+        // ================= 💡 REST API 기반 불러오기 & 저장 =================
+        function openLoadRosterModal() { document.getElementById('load-roster-modal').classList.remove('hidden'); }
+        function closeLoadRosterModal() { document.getElementById('load-roster-modal').classList.add('hidden'); }
+
+        async function executeLoadRoster() {
+            const group = document.getElementById('load-group').value;
+            const matchDate = document.getElementById('load-date').value;
+            if (!matchDate) return alert("경기 일자를 선택해 주세요.");
+
+            try {
+                let url = new URL(GAS_API_URL);
+                url.searchParams.append('action', 'getNetballRoster');
+                url.searchParams.append('grade', '3');
+                url.searchParams.append('group', group);
+                url.searchParams.append('date', matchDate);
+                url.searchParams.append('teamA', teamNames.A);
+                url.searchParams.append('teamB', teamNames.B);
+
+                let res = await fetch(url);
+                let data = await res.json();
+
+                if (data && data.success) {
+                    initPlayersData();
+                    ['A', 'B'].forEach(teamKey => {
+                        const rosterData = (teamKey === 'A') ? data.teamA : data.teamB;
+                        Object.keys(rosterData).forEach(numStr => {
+                            const num = parseInt(numStr);
+                            const subTeams = Array.isArray(rosterData[numStr]) ? rosterData[numStr] : [rosterData[numStr]];
+                            subTeams.forEach(subTeam => {
+                                let q = subTeam === 'A팀' ? 1 : (subTeam === 'B팀' ? 2 : (subTeam === 'C팀' ? 3 : 0));
+                                if (q > 0 && !players[teamKey][num].includes(q)) players[teamKey][num].push(q);
+                            });
+                            players[teamKey][num].sort((a, b) => a - b);
+                        });
+                    });
+
+                    renderRoster('A'); renderRoster('B');
+                    updatePlayerCount('A'); updatePlayerCount('B');
+                    alert(`[출전 명단 동기화 완료]\n- ${teamNames.A} & ${teamNames.B} 명단을 불러왔습니다.`);
+                    closeLoadRosterModal();
+                } else {
+                    alert(data ? data.message : "저장된 명단이 없습니다.");
+                }
+            } catch(e) { alert("불러오기 에러: " + e.toString()); }
+        }
+
+        function openLeagueSaveModal() {
+            document.getElementById('save-summary-text').innerText = `${teamNames.A} (${scores.A}점) vs ${teamNames.B} (${scores.B}점)`;
+            document.getElementById('league-save-modal').classList.remove('hidden');
+        }
+        function closeLeagueSaveModal() { document.getElementById('league-save-modal').classList.add('hidden'); }
+
+        async function executeLeagueSave() {
+            const group = document.getElementById('save-group').value;
+            const matchDate = document.getElementById('save-date').value;
+            if (!matchDate) return alert("경기 일자를 선택해 주세요.");
+
+            let playerDetails = [];
+            ['A', 'B'].forEach(teamKey => {
+                const currentTeamName = (teamKey === 'A') ? teamNames.A : teamNames.B;
+                for (let num = 1; num <= 15; num++) {
+                    const qList = players[teamKey][num] || [];
+                    const warnCount = warnings[teamKey][num] || 0;
+                    
+                    if (qList.includes(1)) playerDetails.push({ team: currentTeamName, subTeam: 'A팀', num: String(num), name: String(num), isAttended: true, card: warnCount > 0 ? 'yellow' : 'none' });
+                    if (qList.includes(2)) playerDetails.push({ team: currentTeamName, subTeam: 'B팀', num: String(num), name: String(num), isAttended: true, card: warnCount > 0 ? 'yellow' : 'none' });
+                    if (qList.includes(3)) playerDetails.push({ team: currentTeamName, subTeam: 'C팀', num: String(num), name: String(num), isAttended: true, card: warnCount > 0 ? 'yellow' : 'none' });
+                }
+            });
+
+            const matchData = {
+                group: group, date: matchDate, sport: "넷볼",
+                teamA: teamNames.A, teamB: teamNames.B,
+                scoreA: scores.A, scoreB: scores.B,
+                teamA_warnings: teamWarnings.A, teamB_warnings: teamWarnings.B,
+                playerDetails: playerDetails
+            };
+
+            try {
+                // 1) 출전명단 시트 전송
+                await fetch(GAS_API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'saveAttendance', grade: '3', matchData: matchData }) });
+                
+                // 2) 점수 및 순위표 전송
+                let res = await fetch(GAS_API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'saveMatchResult', grade: '3', matchData: matchData }) });
+                let data = await res.json();
+
+                alert(data.message + "\n(출전 명단 및 경기 결과가 구글 시트에 정상 기록되었습니다)");
+                closeLeagueSaveModal();
+            } catch(e) { alert("저장 중 오류 발생: " + e.toString()); }
+        }
+
+        function showConfirm(msg, callback) { document.getElementById('confirm-msg').innerText = msg; confirmCallback = callback; document.getElementById('confirm-modal').classList.remove('hidden'); }
+        function closeConfirm() { document.getElementById('confirm-modal').classList.add('hidden'); confirmCallback = null; }
+        function executeConfirm() { if (confirmCallback) confirmCallback(); closeConfirm(); }
+        function showCPHistory() { document.getElementById('cphistory-modal').classList.remove('hidden'); }
+        function closeCPHistory() { document.getElementById('cphistory-modal').classList.add('hidden'); }
+        function toggleFullScreen() { if (!document.fullscreenElement) document.documentElement.requestFullscreen(); else if (document.exitFullscreen) document.exitFullscreen(); }
+    </script>
+</body>
+</html>
