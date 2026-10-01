@@ -840,18 +840,38 @@
 
       function buildSubTeamRows(roster, teamName, subTeamTag, savedPlayers) {
         return roster.map(player => {
-          let savedP = (savedPlayers || []).find(p => p.team === teamName && String(p.num) === String(player.num) && p.subTeam === subTeamTag);
+          // 💡 팀명에서 '반' 또는 숫자만 추출하여 안전하게 매칭 (예: "1반" vs "1반(얼티미트)" 대응)
+          let cleanTeamName = teamName.replace(/[^0-9가-힣]/g, '').trim();
+
+          let savedP = (savedPlayers || []).find(p => {
+            let pCleanTeam = String(p.team || '').replace(/[^0-9가-힣]/g, '').trim();
+            let isTeamMatch = pCleanTeam === cleanTeamName || pCleanTeam.includes(cleanTeamName) || cleanTeamName.includes(pCleanTeam);
+            let isNumMatch = String(p.num) === String(player.num);
+            let isSubTeamMatch = String(p.subTeam).trim() === String(subTeamTag).trim();
+
+            return isTeamMatch && isNumMatch && isSubTeamMatch;
+          });
+
           let isChecked = savedP ? savedP.isAttended : false;
           let savedCard = savedP ? savedP.card : 'none';
 
           return `
             <tr data-class-team="${teamName}" data-subteam="${subTeamTag}" data-num="${player.num}" data-name="${player.name}">
               <td class="p-1 text-center nowrap-cell" style="cursor: pointer; user-select: none;" onclick="toggleAttendanceCell(this)">
-                <input type="checkbox" class="d-none player-attendance" ${isChecked ? 'checked' : ''} data-team="${teamName}" data-subteam="${subTeamTag}" data-num="${player.num}" data-name="${player.name}">
+                <input type="checkbox" class="d-none player-attendance" 
+                       ${isChecked ? 'checked' : ''} 
+                       data-team="${teamName}" 
+                       data-subteam="${subTeamTag}" 
+                       data-num="${player.num}" 
+                       data-name="${player.name}">
                 <strong>${player.num ? player.num + '.' : ''}${player.name}</strong><span class="dup-tag text-danger fw-bold ms-1" style="font-size: 0.7rem;"></span>
               </td>
               <td class="px-1" style="width: 42px;" onclick="event.stopPropagation();">
-                <select class="form-select form-select-sm p-0 text-center player-card" style="font-size:0.7rem; width: 42px;" data-team="${teamName}" data-subteam="${subTeamTag}" data-num="${player.num}">
+                <select class="form-select form-select-sm p-0 text-center player-card" 
+                        style="font-size:0.7rem; width: 42px;" 
+                        data-team="${teamName}" 
+                        data-subteam="${subTeamTag}" 
+                        data-num="${player.num}">
                   <option value="none" ${savedCard === 'none' ? 'selected' : ''}></option>
                   <option value="yellow" ${savedCard === 'yellow' ? 'selected' : ''}>🟨</option>
                   <option value="red" ${savedCard === 'red' ? 'selected' : ''}>🟥</option>
